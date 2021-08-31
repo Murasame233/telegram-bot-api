@@ -1,9 +1,9 @@
 on:
   push:
+    tags:
+    - '*'
     branches:
       - master
-    tags:
-      - '*'
 
 jobs:
   release:
