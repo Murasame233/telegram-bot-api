@@ -23,8 +23,7 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release ..
           cmake --build . --target install
           cd ..
-          ls -l bin/telegram-bot-api*
-          tar -czvf release.tar.gz bin/telegram-bot-api
+          tar -czvf release.tar.gz /usr/local/bin/telegram-bot-api
       - name: release
         uses: ncipollo/release-action@v1
         with:
