@@ -1,0 +1,29 @@
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install dependence
+        run: 
+          sudo apt-get update
+          sudo apt-get upgrade
+          sudo apt-get install make git zlib1g-dev libssl-dev gperf cmake g++
+      - name: build
+        run:
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=.. ..
+          cmake --build . --target install
+          cd ..
+          ls -l bin/telegram-bot-api*
+          tar -czvf release.tar.gz bin/telegram-bot-api
+      - name: release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "release.tar.gz"
+          token: ${{ secrets.RELEASE_TOKEN }}
