@@ -8,10 +8,12 @@ jobs:
     name: release
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
       - name: Install dependence
         run: |
           sudo apt-get update
-          sudo apt-get install make git zlib1g-dev libssl-dev gperf cmake g++
+          sudo apt-get -y install make git zlib1g-dev libssl-dev gperf cmake g++
       - name: build
         run: |
           mkdir build
