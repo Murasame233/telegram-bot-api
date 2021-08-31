@@ -9,12 +9,12 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Install dependence
-        run: 
+        run: |
           sudo apt-get update
           sudo apt-get upgrade
           sudo apt-get install make git zlib1g-dev libssl-dev gperf cmake g++
       - name: build
-        run:
+        run: |
           mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=.. ..
