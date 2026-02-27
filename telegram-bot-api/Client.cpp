@@ -579,6 +579,9 @@ class Client::JsonEntity final : public td::Jsonable {
       case td_api::textEntityTypeExpandableBlockQuote::ID:
         object("type", "expandable_blockquote");
         break;
+      case td_api::textEntityTypeDateTime::ID:
+        object("type", "date_time");
+        break;
       default:
         UNREACHABLE();
     }
@@ -1189,12 +1192,13 @@ class Client::JsonChat final : public td::Jsonable {
           }
           object("permissions", JsonChatPermissions(permissions));
         }
-        auto everyone_is_administrator =
-            permissions->can_send_basic_messages_ && permissions->can_send_audios_ &&
-            permissions->can_send_documents_ && permissions->can_send_photos_ && permissions->can_send_videos_ &&
-            permissions->can_send_video_notes_ && permissions->can_send_voice_notes_ && permissions->can_send_polls_ &&
-            permissions->can_send_other_messages_ && permissions->can_add_link_previews_ &&
-            permissions->can_change_info_ && permissions->can_invite_users_ && permissions->can_pin_messages_;
+        auto everyone_is_administrator = permissions->can_send_basic_messages_ && permissions->can_send_audios_ &&
+                                         permissions->can_send_documents_ && permissions->can_send_photos_ &&
+                                         permissions->can_send_videos_ && permissions->can_send_video_notes_ &&
+                                         permissions->can_send_voice_notes_ && permissions->can_send_polls_ &&
+                                         permissions->can_send_other_messages_ && permissions->can_add_link_previews_ &&
+                                         permissions->can_edit_tag_ && permissions->can_change_info_ &&
+                                         permissions->can_invite_users_ && permissions->can_pin_messages_;
         object("all_members_are_administrators", td::JsonBool(everyone_is_administrator));
         object("accepted_gift_types", JsonAcceptedGiftTypes(false, false, false, false, false));
         photo = group_info->photo.get();
@@ -4410,6 +4414,10 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
       object("chat_owner_changed", JsonChatOwnerChanged(content, client_));
       break;
     }
+    case td_api::messageChatHasProtectedContentToggled::ID:
+      break;
+    case td_api::messageChatHasProtectedContentDisableRequested::ID:
+      break;
     default:
       UNREACHABLE();
   }
@@ -4851,8 +4859,8 @@ class Client::JsonChatMember final : public td::Jsonable {
     switch (member_->status_->get_id()) {
       case td_api::chatMemberStatusCreator::ID: {
         auto creator = static_cast<const td_api::chatMemberStatusCreator *>(member_->status_.get());
-        if (!creator->custom_title_.empty()) {
-          object("custom_title", creator->custom_title_);
+        if (!member_->tag_.empty()) {
+          object("custom_title", member_->tag_);
         }
         object("is_anonymous", td::JsonBool(creator->is_anonymous_));
         // object("is_member", creator->is_member_); only creator itself knows that he is a left creator
@@ -4863,8 +4871,8 @@ class Client::JsonChatMember final : public td::Jsonable {
         object("can_be_edited", td::JsonBool(administrator->can_be_edited_));
         json_store_administrator_rights(object, administrator->rights_.get(), chat_type_);
         object("can_manage_voice_chats", td::JsonBool(administrator->rights_->can_manage_video_chats_));
-        if (!administrator->custom_title_.empty()) {
-          object("custom_title", administrator->custom_title_);
+        if (!member_->tag_.empty()) {
+          object("custom_title", member_->tag_);
         }
         break;
       }
@@ -10500,7 +10508,7 @@ td::Result<td_api::object_ptr<td_api::chatAdministratorRights>> Client::get_chat
   return make_object<td_api::chatAdministratorRights>(
       can_manage_chat, can_change_info, can_post_messages, can_edit_messages, can_delete_messages, can_invite_users,
       can_restrict_members, can_pin_messages, can_manage_topics, can_promote_members, can_manage_video_chats,
-      can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, is_anonymous);
+      can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, false, is_anonymous);
 }
 
 td::Result<td_api::object_ptr<td_api::chatAdministratorRights>> Client::get_chat_administrator_rights(
@@ -11250,7 +11258,7 @@ td::Result<td_api::object_ptr<td_api::chatPermissions>> Client::get_chat_permiss
 
   return make_object<td_api::chatPermissions>(can_send_messages, can_send_audios, can_send_documents, can_send_photos,
                                               can_send_videos, can_send_video_notes, can_send_voice_notes,
-                                              can_send_polls, can_send_other_messages, can_add_web_page_previews,
+                                              can_send_polls, can_send_other_messages, can_add_web_page_previews, false,
                                               can_change_info, can_invite_users, can_pin_messages, can_manage_topics);
 }
 
@@ -14515,11 +14523,11 @@ td::Status Client::process_promote_chat_member_query(PromisedQueryPtr &query) {
                       can_manage_topics || can_promote_members || can_manage_video_chats || can_post_stories ||
                       can_edit_stories || can_delete_stories || can_manage_direct_messages || is_anonymous;
   auto status = make_object<td_api::chatMemberStatusAdministrator>(
-      td::string(), true,
+      true,
       make_object<td_api::chatAdministratorRights>(
           can_manage_chat, can_change_info, can_post_messages, can_edit_messages, can_delete_messages, can_invite_users,
           can_restrict_members, can_pin_messages, can_manage_topics, can_promote_members, can_manage_video_chats,
-          can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, is_anonymous));
+          can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, false, is_anonymous));
   check_chat(chat_id, AccessRights::Write, std::move(query),
              [this, user_id, status = std::move(status), is_promotion](int64 chat_id, PromisedQueryPtr query) mutable {
                auto chat_info = get_chat(chat_id);
@@ -14534,20 +14542,9 @@ td::Status Client::process_promote_chat_member_query(PromisedQueryPtr &query) {
                  status->rights_->can_restrict_members_ = true;
                }
 
-               get_chat_member(
-                   chat_id, user_id, std::move(query),
-                   [this, chat_id, user_id, status = std::move(status)](object_ptr<td_api::chatMember> &&chat_member,
-                                                                        PromisedQueryPtr query) mutable {
-                     if (chat_member->status_->get_id() == td_api::chatMemberStatusAdministrator::ID) {
-                       auto administrator =
-                           static_cast<const td_api::chatMemberStatusAdministrator *>(chat_member->status_.get());
-                       status->custom_title_ = std::move(administrator->custom_title_);
-                     }
-
-                     send_request(make_object<td_api::setChatMemberStatus>(
-                                      chat_id, make_object<td_api::messageSenderUser>(user_id), std::move(status)),
-                                  td::make_unique<TdOnOkQueryCallback>(std::move(query)));
-                   });
+               send_request(make_object<td_api::setChatMemberStatus>(
+                                chat_id, make_object<td_api::messageSenderUser>(user_id), std::move(status)),
+                            td::make_unique<TdOnOkQueryCallback>(std::move(query)));
              });
   return td::Status::OK();
 }
@@ -14575,10 +14572,9 @@ td::Status Client::process_set_chat_administrator_custom_title_query(PromisedQue
             return fail_query(400, "Bad Request: not enough rights to change custom title of the user",
                               std::move(query));
           }
-          administrator->custom_title_ = query->arg("custom_title").str();
 
-          send_request(make_object<td_api::setChatMemberStatus>(
-                           chat_id, make_object<td_api::messageSenderUser>(user_id), std::move(administrator)),
+          auto custom_title = query->arg("custom_title").str();
+          send_request(make_object<td_api::setChatMemberTag>(chat_id, user_id, custom_title),
                        td::make_unique<TdOnOkQueryCallback>(std::move(query)));
         });
   });
@@ -16734,6 +16730,8 @@ bool Client::need_skip_update_message(int64 chat_id, const object_ptr<td_api::me
     case td_api::messageSuggestBirthdate::ID:
     case td_api::messageUpgradedGiftPurchaseOffer::ID:
     case td_api::messageUpgradedGiftPurchaseOfferRejected::ID:
+    case td_api::messageChatHasProtectedContentToggled::ID:
+    case td_api::messageChatHasProtectedContentDisableRequested::ID:
       return true;
     default:
       break;
@@ -16820,6 +16818,9 @@ td::int64 Client::get_same_chat_reply_to_message_id(const object_ptr<td_api::mes
       case td_api::messageUpgradedGiftPurchaseOfferRejected::ID:
         return static_cast<const td_api::messageUpgradedGiftPurchaseOfferRejected *>(message->content_.get())
             ->offer_message_id_;
+      case td_api::messageChatHasProtectedContentToggled::ID:
+        return static_cast<const td_api::messageChatHasProtectedContentToggled *>(message->content_.get())
+            ->request_message_id_;
       default:
         return static_cast<int64>(0);
     }
