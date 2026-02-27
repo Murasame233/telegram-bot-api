@@ -877,6 +877,7 @@ class Client final : public WebhookActor::Callback {
   td::Status process_leave_chat_query(PromisedQueryPtr &query);
   td::Status process_promote_chat_member_query(PromisedQueryPtr &query);
   td::Status process_set_chat_administrator_custom_title_query(PromisedQueryPtr &query);
+  td::Status process_set_chat_member_tag_query(PromisedQueryPtr &query);
   td::Status process_ban_chat_member_query(PromisedQueryPtr &query);
   td::Status process_restrict_chat_member_query(PromisedQueryPtr &query);
   td::Status process_unban_chat_member_query(PromisedQueryPtr &query);

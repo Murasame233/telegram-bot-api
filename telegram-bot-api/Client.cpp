@@ -339,6 +339,7 @@ bool Client::init_methods() {
   methods_.emplace("leavechat", &Client::process_leave_chat_query);
   methods_.emplace("promotechatmember", &Client::process_promote_chat_member_query);
   methods_.emplace("setchatadministratorcustomtitle", &Client::process_set_chat_administrator_custom_title_query);
+  methods_.emplace("setchatmembertag", &Client::process_set_chat_member_tag_query);
   methods_.emplace("banchatmember", &Client::process_ban_chat_member_query);
   methods_.emplace("kickchatmember", &Client::process_ban_chat_member_query);
   methods_.emplace("restrictchatmember", &Client::process_restrict_chat_member_query);
@@ -14573,8 +14574,9 @@ td::Status Client::process_set_chat_administrator_custom_title_query(PromisedQue
   TRY_RESULT(user_id, get_user_id(query.get()));
 
   check_chat(chat_id, AccessRights::Write, std::move(query), [this, user_id](int64 chat_id, PromisedQueryPtr query) {
-    if (get_chat_type(chat_id) != ChatType::Supergroup) {
-      return fail_query(400, "Bad Request: method is available only for supergroups", std::move(query));
+    auto chat_type = get_chat_type(chat_id);
+    if (chat_type != ChatType::Group && chat_type != ChatType::Supergroup) {
+      return fail_query(400, "Bad Request: method is available only for groups and supergroups", std::move(query));
     }
 
     get_chat_member(
@@ -14596,6 +14598,25 @@ td::Status Client::process_set_chat_administrator_custom_title_query(PromisedQue
           send_request(make_object<td_api::setChatMemberTag>(chat_id, user_id, custom_title),
                        td::make_unique<TdOnOkQueryCallback>(std::move(query)));
         });
+  });
+  return td::Status::OK();
+}
+
+td::Status Client::process_set_chat_member_tag_query(PromisedQueryPtr &query) {
+  auto chat_id = query->arg("chat_id");
+  TRY_RESULT(user_id, get_user_id(query.get()));
+
+  check_chat(chat_id, AccessRights::Write, std::move(query), [this, user_id](int64 chat_id, PromisedQueryPtr query) {
+    auto chat_type = get_chat_type(chat_id);
+    if (chat_type != ChatType::Group && chat_type != ChatType::Supergroup) {
+      return fail_query(400, "Bad Request: method is available only for groups and supergroups", std::move(query));
+    }
+
+    check_user_no_fail(user_id, std::move(query), [this, chat_id, user_id](PromisedQueryPtr query) {
+      auto tag = query->arg("tag").str();
+      send_request(make_object<td_api::setChatMemberTag>(chat_id, user_id, tag),
+                   td::make_unique<TdOnOkQueryCallback>(std::move(query)));
+    });
   });
   return td::Status::OK();
 }
