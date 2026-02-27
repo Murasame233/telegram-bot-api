@@ -11148,7 +11148,8 @@ td::Result<td_api::object_ptr<td_api::chatPermissions>> Client::get_chat_permiss
   auto can_send_voice_notes = false;
   auto can_send_polls = false;
   auto can_send_other_messages = false;
-  auto can_add_web_page_previews = false;
+  auto can_add_link_previews = false;
+  auto can_edit_tag = false;
   auto can_change_info = false;
   auto can_invite_users = false;
   auto can_pin_messages = false;
@@ -11173,7 +11174,7 @@ td::Result<td_api::object_ptr<td_api::chatPermissions>> Client::get_chat_permiss
       TRY_RESULT_ASSIGN(can_send_messages, object.get_optional_bool_field("can_send_messages"));
       TRY_RESULT_ASSIGN(can_send_polls, object.get_optional_bool_field("can_send_polls"));
       TRY_RESULT_ASSIGN(can_send_other_messages, object.get_optional_bool_field("can_send_other_messages"));
-      TRY_RESULT_ASSIGN(can_add_web_page_previews, object.get_optional_bool_field("can_add_web_page_previews"));
+      TRY_RESULT_ASSIGN(can_add_link_previews, object.get_optional_bool_field("can_add_web_page_previews"));
       TRY_RESULT_ASSIGN(can_change_info, object.get_optional_bool_field("can_change_info"));
       TRY_RESULT_ASSIGN(can_invite_users, object.get_optional_bool_field("can_invite_users"));
       TRY_RESULT_ASSIGN(can_pin_messages, object.get_optional_bool_field("can_pin_messages"));
@@ -11203,6 +11204,11 @@ td::Result<td_api::object_ptr<td_api::chatPermissions>> Client::get_chat_permiss
           can_send_messages = true;
         }
       }
+      if (object.has_field("can_edit_tag")) {
+        TRY_RESULT_ASSIGN(can_edit_tag, object.get_optional_bool_field("can_edit_tag"));
+      } else {
+        can_edit_tag = can_pin_messages;
+      }
       return td::Status::OK();
     }();
 
@@ -11210,7 +11216,7 @@ td::Result<td_api::object_ptr<td_api::chatPermissions>> Client::get_chat_permiss
       return td::Status::Error(400, PSLICE() << "Can't parse chat permissions: " << status.message());
     }
 
-    if ((can_send_other_messages || can_add_web_page_previews) && !use_independent_chat_permissions) {
+    if ((can_send_other_messages || can_add_link_previews) && !use_independent_chat_permissions) {
       can_send_audios = true;
       can_send_documents = true;
       can_send_photos = true;
@@ -11228,15 +11234,15 @@ td::Result<td_api::object_ptr<td_api::chatPermissions>> Client::get_chat_permiss
     can_send_messages = to_bool(query->arg("can_send_messages"));
     bool can_send_media_messages = to_bool(query->arg("can_send_media_messages"));
     can_send_other_messages = to_bool(query->arg("can_send_other_messages"));
-    can_add_web_page_previews = to_bool(query->arg("can_add_web_page_previews"));
-    if ((can_send_other_messages || can_add_web_page_previews) && !use_independent_chat_permissions) {
+    can_add_link_previews = to_bool(query->arg("can_add_web_page_previews"));
+    if ((can_send_other_messages || can_add_link_previews) && !use_independent_chat_permissions) {
       can_send_media_messages = true;
     }
     if (can_send_media_messages && !use_independent_chat_permissions) {
       can_send_messages = true;
     }
 
-    if (can_send_messages && can_send_media_messages && can_send_other_messages && can_add_web_page_previews) {
+    if (can_send_messages && can_send_media_messages && can_send_other_messages && can_add_link_previews) {
       // legacy unrestrict
       can_send_polls = true;
       can_change_info = true;
@@ -11256,10 +11262,10 @@ td::Result<td_api::object_ptr<td_api::chatPermissions>> Client::get_chat_permiss
     can_send_voice_notes = can_send_media_messages;
   }
 
-  return make_object<td_api::chatPermissions>(can_send_messages, can_send_audios, can_send_documents, can_send_photos,
-                                              can_send_videos, can_send_video_notes, can_send_voice_notes,
-                                              can_send_polls, can_send_other_messages, can_add_web_page_previews, false,
-                                              can_change_info, can_invite_users, can_pin_messages, can_manage_topics);
+  return make_object<td_api::chatPermissions>(
+      can_send_messages, can_send_audios, can_send_documents, can_send_photos, can_send_videos, can_send_video_notes,
+      can_send_voice_notes, can_send_polls, can_send_other_messages, can_add_link_previews, can_edit_tag,
+      can_change_info, can_invite_users, can_pin_messages, can_manage_topics);
 }
 
 td::Result<td_api::object_ptr<td_api::inputChecklistTask>> Client::get_input_checklist_task(
@@ -16054,6 +16060,7 @@ void Client::json_store_permissions(td::JsonObjectScope &object, const td_api::c
   object("can_send_polls", td::JsonBool(permissions->can_send_polls_));
   object("can_send_other_messages", td::JsonBool(permissions->can_send_other_messages_));
   object("can_add_web_page_previews", td::JsonBool(permissions->can_add_link_previews_));
+  object("can_edit_tag", td::JsonBool(permissions->can_edit_tag_));
   object("can_change_info", td::JsonBool(permissions->can_change_info_));
   object("can_invite_users", td::JsonBool(permissions->can_invite_users_));
   object("can_pin_messages", td::JsonBool(permissions->can_pin_messages_));
