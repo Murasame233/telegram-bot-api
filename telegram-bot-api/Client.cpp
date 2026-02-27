@@ -4452,6 +4452,9 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
   if (message_->sender_boost_count != 0) {
     object("sender_boost_count", message_->sender_boost_count);
   }
+  if (!message_->sender_tag.empty()) {
+    object("sender_tag", message_->sender_tag);
+  }
   if (message_->paid_message_star_count != 0) {
     object("paid_star_count", message_->paid_message_star_count);
   }
@@ -17347,6 +17350,7 @@ void Client::init_message(MessageInfo *message_info, object_ptr<td_api::message>
   message_info->topic_id = std::move(message->topic_id_);
   message_info->author_signature = std::move(message->author_signature_);
   message_info->sender_boost_count = message->sender_boost_count_;
+  message_info->sender_tag = std::move(message->sender_tag_);
   message_info->paid_message_star_count = message->paid_message_star_count_;
   message_info->effect_id = message->effect_id_;
   message_info->is_paid_post = message->is_paid_star_suggested_post_ || message->is_paid_ton_suggested_post_;
